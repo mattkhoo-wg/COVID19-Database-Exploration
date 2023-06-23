@@ -26,3 +26,45 @@ BEGIN
     GROUP BY DATEADD(MONTH, DATEDIFF(MONTH, 0, date), 0)
     ORDER BY month;
 END;
+
+-- Stored procudre for bulk insert from blob storage
+CREATE PROCEDURE BulkInsertFromBlob
+    @FilePath NVARCHAR(255),
+    @TableName NVARCHAR(255)
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  BULK INSERT @TableName FROM @FilePath
+  WITH (
+      DATA_SOURCE = 'covidData_blob',
+      DATAFILETYPE = 'char',
+      FIRSTROW = 2, -- Skip the header row if necessary
+      FIELDTERMINATOR = ',', -- Specify the CSV field delimiter
+      ROWTERMINATOR = '\n', -- Specify the row delimiter
+      BATCHSIZE=10000, -- reduce network traffic
+      TABLOCK -- minimize log records
+  );
+END;
+
+-- Stored procedure for bulk insert from CSV file
+CREATE PROCEDURE BulkInsertFromCSV
+    @FilePath NVARCHAR(255),
+    @TableName NVARCHAR(255)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Define the format file path
+    DECLARE @FormatFilePath NVARCHAR(255);
+    SET @FormatFilePath = REPLACE(@FilePath, '.csv', '.fmt');
+  
+    -- Create a format file for the CSV data
+    EXEC xp_cmdshell 'bcp ' + @TableName + ' format nul -f ' + @FormatFilePath + ' -n -x';
+
+    -- Bulk insert the data from the CSV file
+    DECLARE @BulkInsertQuery NVARCHAR(MAX);
+    SET @BulkInsertQuery = 'BULK INSERT ' + @TableName + ' FROM ''' + @FilePath + ''' '
+        + 'WITH (FORMATFILE = ''' + @FormatFilePath + ''', FIRSTROW = 2, FIELDTERMINATOR = '','', ROWTERMINATOR = ''\n'')';
+    EXEC sp_executesql @BulkInsertQuery;
+END;
