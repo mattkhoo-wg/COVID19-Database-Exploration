@@ -1,3 +1,10 @@
+-- Retrieve countires with the highest number of vaccinations
+SELECT location, MAX(total_vaccinations) AS max_vaccinations
+FROM Vaccinations
+WHERE continent IS NOT NULL
+GROUP BY location
+ORDER BY max_vaccinations DESC;
+
 -- Calculating percentage increase in vaccinations for United States
 SELECT date, location, new_vaccinations,
        (new_vaccinations - LAG(new_vaccinations) OVER (PARTITION BY location ORDER BY date)) / LAG(new_vaccinations) OVER (PARTITION BY location ORDER BY date) * 100 AS percentage_increase
